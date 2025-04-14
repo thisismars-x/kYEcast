@@ -1,27 +1,32 @@
-
-// to exit type in .;.;.; (.; three times)
 use {
-    std::sync:: {mpsc, Mutex, Arc},
-    rdev:: {Key:: {self, *}, listen, Event, EventType},
-    std:: {time::Duration, thread},
-    sdl2:: {
-        rect:: {Point, Rect}, surface:: {self, Surface},
-        pixels:: Color, image::{self, LoadSurface}
+    std::sync:: { mpsc, Mutex, Arc },
+    rdev::      { Key:: { self, * }, listen, Event, EventType },
+    std::       { time::Duration, thread },
+    sdl2::      {
+        rect::  { Point, Rect }, surface:: { self, Surface },
+        pixels:: Color, image::{ self, LoadSurface }
     }
 };
-const SHOW_CHARACTERS: usize = 6;
+
+const SHOW_CHARACTERS: usize = 10;
 
 fn main() {
-    let (tx, rx) = mpsc::channel::<String>();
+    let (tx, rx)      = mpsc::channel::<String>();
+    let result_string = Arc::new(Mutex::new(String::new()));
 
-    let mut result_string = String::new();
-    // let result_string = Arc::new(Mutex::new(String::new()))
-    let rdev_thread = thread::spawn(move || {
-        listen(move |ev: Event| {
+    let rdev_thread   = thread::spawn(move || {
+        if let Err(_) = listen(move |ev: Event| {
             if let EventType::KeyPress(code) = ev.event_type {
-                let result = get_string(code);
-                result_string.push_str(&result);
-                let result_str: String = result_string
+
+                let result_string = Arc::clone(&result_string);
+                let mut result    = get_string(code);
+                let mut unlocked_result_string = result_string.lock().expect("lock not acquired by `result_string`");
+
+                if result == "backspace"              { unlocked_result_string.pop(); result = String::new(); }
+                unlocked_result_string.push_str(&result);
+                if unlocked_result_string.is_empty()  { unlocked_result_string.push_str(" "); } // --underflow
+                if unlocked_result_string.len() > 500 { unlocked_result_string.drain(..500);  } // --overflow
+                let result_str: String = unlocked_result_string
                     .chars().rev()
                     .take(SHOW_CHARACTERS)
                     .collect::<Vec<char>>()
@@ -31,17 +36,16 @@ fn main() {
                 
                 tx.send(result_str).expect("Error communicating with mpsc");
             }
-        });
+        }) { eprintln!("Error accessing keyboard"); } 
     });
 
-    let sdl_context = sdl2::init().unwrap();
-    let ttf_context = sdl2::ttf::init().expect("--features ttf disabled");
-
+    let sdl_context     = sdl2::init().unwrap();
+    let ttf_context     = sdl2::ttf::init().expect("--features ttf disabled");
     let video_subsystem = sdl_context.video().expect("Could not initialize video subsystem for SDL context");
-    let mut window = video_subsystem
-        .window("doves in nature", 300, 100)
+    let mut window      = video_subsystem
+        .window(" ", 300, 100)
         .position_centered()
-        .borderless()
+        // .borderless() -- somehow removing borders crashes the program(why?)
         .build()
         .expect("Could not initialize window");
 
@@ -50,14 +54,38 @@ fn main() {
     let mut canvas = window.into_canvas().build().unwrap();
     let texture_creator = canvas.texture_creator();
 
-    let font = "Iosevka.ttf";
-    let font = ttf_context.load_font(font, 48)
+    let font = "Iosevka.ttf"; // -- put 'Iosevka.ttf' in ../src/
+    let font = ttf_context.load_font(font, 42)
         .expect(&format!("Could not load font at {}", font));
 
+    let mut previous = String::from(" ");
     'sdl: loop {
             match rx.try_recv() {
             
                 Ok(result) => {
+
+                    previous = result.clone();
+                    if result.contains(".;.;.;") { break 'sdl; }
+                    canvas.set_draw_color(Color::RGB(0, 0, 0));
+                    canvas.clear();
+
+                    let surface = font
+                        .render(&result)
+                        .blended(Color::RGB(255, 255, 255))
+                        .unwrap();
+
+                    let texture = texture_creator
+                        .create_texture_from_surface(&surface)
+                        .unwrap();
+
+                    let target = Rect::new(20, 15, surface.width(), surface.height());
+                    canvas.copy(&texture, None, Some(target)).unwrap();
+                    canvas.present();
+                }
+
+                Err(_) => {
+                    
+                    let result = previous.clone();
                     if result.contains(".;.;.;") { break 'sdl; }
                     canvas.set_draw_color(Color::RGB(0, 0, 0));
                     canvas.clear();
@@ -74,22 +102,20 @@ fn main() {
                     let target = Rect::new(20, 13, surface.width(), surface.height());
                     canvas.copy(&texture, None, Some(target)).unwrap();
                     canvas.present();
+                
                 }
-
-                Err(_) => {}
+        
             }
-        }
+    }
 
      // rdev_thread.join().unwrap();
 }
 
 
-
 fn get_string(code: Key) -> String {
     match code {
-        AltGr => "Alt".to_string(),
-        Alt => "Alt".to_string(),
-        Backspace => "␈".to_string(),
+        Alt | AltGr=> "Alt".to_string(),
+        Backspace => "backspace".to_string(),
         CapsLock => "Cap".to_string(),
         ControlLeft => "C-L".to_string(),
         ControlRight => "C-R".to_string(),
@@ -115,15 +141,13 @@ fn get_string(code: Key) -> String {
         MetaRight => "Win".to_string(),
         PageDown => "⇟".to_string(),
         PageUp => "⇞".to_string(),
-        Return => "⏎".to_string(),
+        Return => "<-|".to_string(),
         RightArrow => "→".to_string(),
-        ShiftLeft => "S-L".to_string(),
-        ShiftRight => "S-R".to_string(),
-        Space => "␣".to_string(),
-        Tab => "⇥".to_string(),
+        ShiftLeft | ShiftRight => "$".to_string(),
+        Space => " ".to_string(),
+        Tab => "|->".to_string(),
         UpArrow => "↑".to_string(),
         PrintScreen => "Prt-Scr".to_string(),
-        Pause => "U+23F8".to_string(),
         NumLock => "N-L".to_string(),
         BackQuote => "`".to_string(),
         Num1 => "1".to_string(),
@@ -194,5 +218,3 @@ fn get_string(code: Key) -> String {
         _ => format!("{:?}", code),
     }
 }
-
-
