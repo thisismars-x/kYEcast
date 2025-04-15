@@ -1,0 +1,26 @@
+keycast
+Control + q to exit
+Contrl  + l to clear screen buffer
+
+----------------------------------------
+-- To create a desktop app -------------
+
+filename: dpn.desktop
+[Desktop Entry]
+Name=keycast
+Exec=/home/avi/.cargo/bin/keycast %u  <---- exec path should point to exec path of 
+Icon=/home/avi/Documents/icons/ye.png <--|           [cargo install --path .]
+Type=Application                         |---- should point to icon path
+Categories=Utility
+
+chmod +x dpn.desktop
+mv dpn.desktop /usr/share/applications
+Also make sure to change the font path in 
+filename: src/main.rs
+line60: let font = "/home/avi/Documents/icons/Iosevka.ttf"; // -- put font in correct path 
+
+After running cargo install --path . if you 
+only want to access keycast via terminal, you can run
+[keycast &] in shell to run keycast detaching it
+
+-------------------------------------
