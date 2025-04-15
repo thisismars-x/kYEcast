@@ -24,8 +24,11 @@ fn main() {
 
                 if result == "backspace"              { unlocked_result_string.pop(); result = String::new(); }
                 unlocked_result_string.push_str(&result);
-                if unlocked_result_string.is_empty()  { unlocked_result_string.push_str(" "); } // --underflow
                 if unlocked_result_string.len() > 500 { unlocked_result_string.drain(..500);  } // --overflow
+
+                // -- press (Control+l) to clear buffer
+                unlocked_result_string.contains("CtrlL").then(|| unlocked_result_string.clear());
+                if unlocked_result_string.is_empty()  { unlocked_result_string.push_str(" "); } // --underflow
                 let result_str: String = unlocked_result_string
                     .chars().rev()
                     .take(SHOW_CHARACTERS)
@@ -54,7 +57,7 @@ fn main() {
     let mut canvas = window.into_canvas().build().unwrap();
     let texture_creator = canvas.texture_creator();
 
-    let font = "Iosevka.ttf"; // -- put 'Iosevka.ttf' in ../src/
+    let font = "/home/avi/Documents/icons/Iosevka.ttf"; // -- put font in correct path 
     let font = ttf_context.load_font(font, 42)
         .expect(&format!("Could not load font at {}", font));
 
@@ -65,7 +68,7 @@ fn main() {
                 Ok(result) => {
 
                     previous = result.clone();
-                    if result.contains(".;.;.;") { break 'sdl; }
+                    if result.contains("CtrlQ") { break 'sdl; }
                     canvas.set_draw_color(Color::RGB(0, 0, 0));
                     canvas.clear();
 
@@ -86,7 +89,7 @@ fn main() {
                 Err(_) => {
                     
                     let result = previous.clone();
-                    if result.contains(".;.;.;") { break 'sdl; }
+                    if result.contains("CtrlQ") { break 'sdl; }
                     canvas.set_draw_color(Color::RGB(0, 0, 0));
                     canvas.clear();
 
@@ -117,8 +120,7 @@ fn get_string(code: Key) -> String {
         Alt | AltGr=> "Alt".to_string(),
         Backspace => "backspace".to_string(),
         CapsLock => "Cap".to_string(),
-        ControlLeft => "C-L".to_string(),
-        ControlRight => "C-R".to_string(),
+        ControlLeft | ControlRight => "Ctrl".to_string(),
         Delete => "Del".to_string(),
         DownArrow => "↓".to_string(),
         End => "End".to_string(),
